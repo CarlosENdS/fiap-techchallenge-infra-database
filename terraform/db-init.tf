@@ -1,5 +1,5 @@
 # 1. Define o Namespace exclusivo para a tarefa de população
-resource "kubernetes_namespace" "db_init_ns" {
+resource "kubernetes_namespace_v1" "db_init_ns" {
   metadata {
     name = "db-init" # Você pode mudar para "cargarage" se preferir tudo junto
   }
