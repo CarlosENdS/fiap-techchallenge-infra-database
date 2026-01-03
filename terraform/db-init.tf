@@ -21,7 +21,7 @@ resource "kubernetes_config_map_v1" "db_seed_script" {
 resource "kubernetes_job_v1" "db_seed_job" {
   metadata {
     name      = "cargarage-db-seed"
-    namespace = kubernetes_namespace.db_init_ns.metadata[0].name
+    namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
   }
 
   spec {
