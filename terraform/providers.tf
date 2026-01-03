@@ -31,11 +31,11 @@ provider "aws" {
 
 # Provider definido para criação de recursos Kubernetes (para o DB Init Job)
 data "aws_eks_cluster" "eks" {
-  name = data.terraform_remote_state.k8s.outputs.cluster_name
+  name = data.terraform_remote_state.k8s.outputs.eks_cluster_name
 }
 
 data "aws_eks_cluster_auth" "eks" {
-  name = data.terraform_remote_state.k8s.outputs.cluster_name
+  name = data.terraform_remote_state.k8s.outputs.eks_cluster_name
 }
 
 provider "kubernetes" {
