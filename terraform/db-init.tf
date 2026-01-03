@@ -6,7 +6,7 @@ resource "kubernetes_namespace" "db_init_ns" {
 }
 
 # 2. ConfigMap dentro do namespace específico
-resource "kubernetes_config_map" "db_seed_script" {
+resource "kubernetes_config_map_v1" "db_seed_script" {
   metadata {
     name      = "db-seed-script"
     namespace = kubernetes_namespace.db_init_ns.metadata[0].name
@@ -18,7 +18,7 @@ resource "kubernetes_config_map" "db_seed_script" {
 }
 
 # 3. Job dentro do namespace específico
-resource "kubernetes_job" "db_seed_job" {
+resource "kubernetes_job_v1" "db_seed_job" {
   metadata {
     name      = "cargarage-db-seed"
     namespace = kubernetes_namespace.db_init_ns.metadata[0].name
@@ -64,6 +64,6 @@ resource "kubernetes_job" "db_seed_job" {
 
   depends_on = [
     aws_db_instance.postgres,
-    kubernetes_configmap.db_seed_script
+    kubernetes_config_map_v1.db_seed_script
   ]
 }
