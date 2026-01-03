@@ -6,7 +6,7 @@ resource "kubernetes_namespace" "db_init_ns" {
 }
 
 # 2. ConfigMap dentro do namespace específico
-resource "kubernetes_configmap" "db_seed_script" {
+resource "kubernetes_config_map" "db_seed_script" {
   metadata {
     name      = "db-seed-script"
     namespace = kubernetes_namespace.db_init_ns.metadata[0].name
