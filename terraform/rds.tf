@@ -3,7 +3,7 @@
 # Grupo de Subnets para o RDS (Usando as privadas do Repo 1)
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-db-subnet-group-${var.environment}"
-  subnet_ids = data.terraform_remote_state.k8s.outputs.private_subnet_ids
+  subnet_ids = data.terraform_remote_state.k8s.outputs.public_subnet_ids
 
   tags = {
     Name = "${var.project_name}-db-subnet-group-${var.environment}"
@@ -62,3 +62,4 @@ resource "aws_db_instance" "postgres" {
     Type = "database"
   }
 }
+
