@@ -23,6 +23,7 @@ resource "aws_security_group" "rds_sg" {
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [data.terraform_remote_state.k8s.outputs.eks_nodes_security_group_id]
+    cidr_blocks       = [data.terraform_remote_state.k8s.outputs.vpc_cidr_block] # Use o CIDR da sua VPC (ex: 10.0.0.0/16)
   }
 
   egress {
