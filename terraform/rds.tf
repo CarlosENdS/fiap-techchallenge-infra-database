@@ -17,13 +17,12 @@ resource "aws_security_group" "rds_sg" {
   vpc_id      = data.terraform_remote_state.k8s.outputs.vpc_id
   description = "Acesso ao Postgres"
 
-  # Regra de entrada: Apenas o SG dos Nodes do EKS pode conectar na porta 5432
   ingress {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [data.terraform_remote_state.k8s.outputs.eks_nodes_security_group_id]
-    cidr_blocks       = [data.terraform_remote_state.k8s.outputs.vpc_cidr_block] # Use o CIDR da sua VPC (ex: 10.0.0.0/16)
+    cidr_blocks       = [data.terraform_remote_state.k8s.outputs.vpc_cidr] 
   }
 
   egress {
