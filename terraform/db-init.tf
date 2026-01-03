@@ -9,7 +9,7 @@ resource "kubernetes_namespace_v1" "db_init_ns" {
 resource "kubernetes_config_map_v1" "db_seed_script" {
   metadata {
     name      = "db-seed-script"
-    namespace = kubernetes_namespace.db_init_ns.metadata[0].name
+    namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
   }
 
   data = {
