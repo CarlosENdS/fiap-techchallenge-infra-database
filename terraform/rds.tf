@@ -129,7 +129,7 @@ resource "aws_db_instance" "postgres" {
   tags = {
     Name        = "${var.project_name}-postgres-${var.environment}"
     Type        = "database"
-    Service     = "cargarage,os-service"
+    Service     = "cargarage-os-service"
     Environment = var.environment
   }
 }
