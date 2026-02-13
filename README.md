@@ -1,8 +1,8 @@
-# Infra Database – Banco de Dados Gerenciado (Amazon RDS)
+# Infra Database – Banco de Dados, Mensageria e IAM (Amazon RDS, SQS, IAM)
 
-Este repositório é responsável pela **provisão e gerenciamento da infraestrutura de banco de dados gerenciado** da aplicação do Tech Challenge, utilizando **Amazon RDS (PostgreSQL)** e **Terraform Cloud**, seguindo práticas de **cloud computing, infraestrutura como código (IaC), segurança e escalabilidade**.
+Este repositório é responsável pela **provisão e gerenciamento da infraestrutura de banco de dados, mensageria e IAM** da aplicação do Tech Challenge, utilizando **Amazon RDS (PostgreSQL)**, **Amazon SQS**, **IAM Roles (IRSA)** e **Terraform Cloud**, seguindo práticas de **cloud computing, infraestrutura como código (IaC), segurança e escalabilidade**.
 
-O objetivo deste repositório é garantir **persistência de dados confiável, consistente e segura**, permitindo que a aplicação opere em nível corporativo, com separação clara de responsabilidades entre infraestrutura, aplicação e autenticação.
+O objetivo deste repositório é garantir **persistência de dados confiável, consistente e segura**, além de **comunicação assíncrona entre microserviços** e **autenticação segura via IRSA**, permitindo que a aplicação opere em nível corporativo, com separação clara de responsabilidades entre infraestrutura, aplicação e autenticação.
 
 ---
 
@@ -11,6 +11,8 @@ O objetivo deste repositório é garantir **persistência de dados confiável, c
 Atender aos seguintes requisitos do desafio:
 
 - Uso de **Banco de Dados Gerenciado**
+- **Mensageria com Amazon SQS** para comunicação assíncrona (Saga Pattern)
+- **IAM Roles for Service Accounts (IRSA)** para autenticação segura dos pods
 - Infraestrutura provisionada via **Terraform**
 - Deploy automatizado em **CI/CD**
 - Segurança e isolamento de rede
@@ -25,6 +27,9 @@ Atender aos seguintes requisitos do desafio:
 - Provisiona um banco **PostgreSQL gerenciado via Amazon RDS**
 - Cria recursos de rede necessários para o banco (subnets privadas e security groups)
 - Configura backups automáticos e criptografia
+- **Provisiona filas SQS para comunicação assíncrona (Saga Pattern)**
+- **Cria IAM Roles para IRSA (pods EKS acessarem AWS services)**
+- **Configura IAM Role para GitHub Actions (CD sem credenciais estáticas)**
 - Gerencia variáveis e credenciais de forma segura
 - Executa deploy automatizado via Terraform Cloud
 - Disponibiliza outputs para integração com a aplicação
@@ -98,6 +103,110 @@ Por fins de estudo, é liberado um script de inicialização dos dados para faci
 ```text
 terraform/scripts/seed.sql
 ```
+
+---
+
+## 📨 Amazon SQS – Mensageria para Saga Pattern
+
+Este repositório provisiona filas SQS para comunicação assíncrona entre microserviços, implementando o **Saga Pattern** para transações distribuídas.
+
+### Filas Provisionadas
+
+| Fila | Tipo | Propósito |
+|------|------|-----------|
+| `os-order-events-queue.fifo` | FIFO | Fila de saída do os-service. Publica eventos de alteração de status de OS |
+| `quote-approved-queue` | Standard | Recebe notificação de orçamento aprovado pelo billing-service |
+| `execution-completed-queue` | Standard | Recebe notificação de execução concluída pelo execution-service |
+| `payment-failed-queue` | Standard | Compensação: notifica falha no pagamento |
+| `resource-unavailable-queue` | Standard | Compensação: notifica indisponibilidade de recurso |
+
+### Dead Letter Queues (DLQ)
+
+Todas as filas possuem DLQ configurada com:
+- **maxReceiveCount**: 3 tentativas antes de mover para DLQ
+- **Retenção**: 14 dias
+
+### Configuração de Otimização de Custos
+
+```hcl
+visibility_timeout_seconds = 30    # Timeout de processamento
+message_retention_seconds  = 345600 # 4 dias (produção usa 14 dias)
+delay_seconds             = 0
+max_message_size          = 262144  # 256KB
+receive_wait_time_seconds = 0
+```
+
+---
+
+## 🔑 IAM Roles – IRSA e GitHub Actions
+
+### IRSA (IAM Roles for Service Accounts)
+
+O repositório configura **IRSA** para autenticação segura dos pods EKS aos serviços AWS, eliminando a necessidade de credenciais estáticas.
+
+#### Role: `os-service-irsa-role`
+
+Permite que pods do os-service acessem:
+
+| Serviço | Permissões |
+|---------|------------|
+| SQS | SendMessage, ReceiveMessage, DeleteMessage, GetQueueAttributes, GetQueueUrl |
+| ECR | GetAuthorizationToken, BatchCheckLayerAvailability, GetDownloadUrlForLayer, BatchGetImage |
+
+**Configuração no Kubernetes:**
+
+```yaml
+# k8s/service-account.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: os-service-sa
+  namespace: os-service
+  annotations:
+    eks.amazonaws.com/role-arn: "${OS_SERVICE_IRSA_ROLE_ARN}"
+```
+
+### GitHub Actions Deploy Role
+
+Role para permitir que GitHub Actions faça push de imagens para ECR e deploy no EKS:
+
+| Permissão | Descrição |
+|-----------|-----------|
+| ECR | Push de imagens Docker |
+| EKS | Describe cluster (para kubectl) |
+
+**Trust Policy:**
+- Confia no GitHub OIDC Provider
+- Restrito ao repositório: `CarlosENdS/fiap-techchallenge-microservice-os-service`
+
+---
+
+## 📤 Outputs
+
+Após o deploy, são expostos outputs para integração com outros componentes da
+arquitetura:
+
+### Banco de Dados
+- `db_endpoint` - Endpoint do RDS
+- `db_port` - Porta de conexão
+- `db_name` - Nome do banco
+- `db_instance_identifier` - Identificador da instância
+
+### SQS
+- `sqs_os_order_events_queue_url` - URL da fila de eventos FIFO
+- `sqs_quote_approved_queue_url` - URL da fila quote-approved
+- `sqs_execution_completed_queue_url` - URL da fila execution-completed
+- `sqs_payment_failed_queue_url` - URL da fila payment-failed
+- `sqs_resource_unavailable_queue_url` - URL da fila resource-unavailable
+
+### IAM
+- `os_service_irsa_role_arn` - ARN da role IRSA para os-service
+- `github_actions_deploy_role_arn` - ARN da role para GitHub Actions
+
+### Kubernetes Secrets Helper
+- `k8s_secrets_yaml` - YAML formatado para criar secrets no K8s
+
+---
 
 ## 🚀 Deploy Automatizado com Terraform Cloud
 
@@ -194,7 +303,10 @@ repositórios, cada um com responsabilidade bem definida:
 - **Aplicação Principal (Kubernetes)**  
   https://github.com/CarlosENdS/fiap-techchallenge-cargarage
 
-- **Infraestrutura Kubernetes (EKS + Rede)**  
+- **OS Service Microservice (Extraído do Monolito)**  
+  https://github.com/CarlosENdS/fiap-techchallenge-microservice-os-service
+
+- **Infraestrutura Kubernetes (EKS + Rede + OIDC)**  
   https://github.com/CarlosENdS/fiap-techchallenge-infra-kubernetes
 
 - **Autenticação Serverless (Lambda)**  

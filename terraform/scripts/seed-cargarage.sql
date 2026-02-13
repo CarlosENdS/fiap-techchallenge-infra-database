@@ -1,3 +1,8 @@
+-- ==============================================================================
+-- CARGARAGE MONOLITH DATABASE SEED
+-- Schema and initial data for the main Car Garage application
+-- ==============================================================================
+
 -- Creation of the role table
 CREATE TABLE IF NOT EXISTS role (
     id SERIAL PRIMARY KEY,
@@ -127,7 +132,6 @@ CREATE TABLE IF NOT EXISTS vehicles (
     customer_id INT NOT NULL,
     FOREIGN KEY (customer_id) REFERENCES customers(id)
 );
-
 
 INSERT INTO vehicles (license_plate, model, brand, year, customer_id) VALUES
 ('ABC-1234', 'Onix', 'Chevrolet', 2020, 1),

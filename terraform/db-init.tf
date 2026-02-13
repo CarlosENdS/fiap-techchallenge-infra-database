@@ -1,69 +1,275 @@
-# 1. Define o Namespace exclusivo para a tarefa de população
+# db-init.tf - Database Initialization via Kubernetes Jobs
+# Creates namespaces, ConfigMaps, and Jobs to seed both databases
+
+# ==============================================================================
+# NAMESPACE
+# ==============================================================================
+
 resource "kubernetes_namespace_v1" "db_init_ns" {
   metadata {
-    name = "db-init" # Você pode mudar para "cargarage" se preferir tudo junto
+    name = "db-init"
+    labels = {
+      purpose = "database-initialization"
+    }
   }
 }
 
-# 2. ConfigMap dentro do namespace específico
-resource "kubernetes_config_map_v1" "db_seed_script" {
+# ==============================================================================
+# CONFIGMAPS - SQL Scripts
+# ==============================================================================
+
+resource "kubernetes_config_map_v1" "cargarage_seed_script" {
   metadata {
-    name      = "db-seed-script"
+    name      = "cargarage-seed-script"
     namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
   }
 
   data = {
-    "seed.sql" = file("${path.module}/scripts/seed.sql")
+    "seed-cargarage.sql" = file("${path.module}/scripts/seed-cargarage.sql")
   }
 }
 
-# 3. Job dentro do namespace específico
-resource "kubernetes_job_v1" "db_seed_job" {
+resource "kubernetes_config_map_v1" "os_service_init_script" {
+  metadata {
+    name      = "os-service-init-script"
+    namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
+  }
+
+  data = {
+    "init-os-service-db.sql" = file("${path.module}/scripts/init-os-service-db.sql")
+  }
+}
+
+resource "kubernetes_config_map_v1" "os_service_seed_script" {
+  metadata {
+    name      = "os-service-seed-script"
+    namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
+  }
+
+  data = {
+    "seed-os-service.sql" = file("${path.module}/scripts/seed-os-service.sql")
+  }
+}
+
+# ==============================================================================
+# JOB 1 - Cargarage Database Seed (Monolito)
+# ==============================================================================
+
+resource "kubernetes_job_v1" "cargarage_db_seed" {
   metadata {
     name      = "cargarage-db-seed"
     namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
   }
 
   spec {
-    # Apaga o Job do cluster 10 segundos após terminar com sucesso
-    ttl_seconds_after_finished = 10 
+    ttl_seconds_after_finished = 300 # Clean up job after 5 minutes
 
     template {
       metadata {
         labels = {
-          app = "cargarage-db-seed"
+          app      = "cargarage-db-seed"
+          database = "cargarage"
         }
       }
       spec {
         container {
           name    = "db-seed"
-          image   = "postgres:16"
+          image   = "postgres:16-alpine"
           command = ["/bin/sh", "-c"]
           args = [
-            "psql -h ${aws_db_instance.postgres.address} -U ${aws_db_instance.postgres.username} -d ${aws_db_instance.postgres.db_name} -f /scripts/seed.sql"
+            "echo 'Seeding cargarage database...' && psql -h ${aws_db_instance.postgres.address} -U ${local.db_username} -d ${local.db_name} -f /scripts/seed-cargarage.sql && echo 'Cargarage database seeded successfully!'"
           ]
           env {
             name  = "PGPASSWORD"
-            value = aws_db_instance.postgres.password
+            value = local.db_password
           }
           volume_mount {
             name       = "sql-volume"
             mount_path = "/scripts"
           }
+          resources {
+            requests = {
+              memory = "64Mi"
+              cpu    = "50m"
+            }
+            limits = {
+              memory = "128Mi"
+              cpu    = "100m"
+            }
+          }
         }
         volume {
           name = "sql-volume"
           config_map {
-            name = "db-seed-script"
+            name = kubernetes_config_map_v1.cargarage_seed_script.metadata[0].name
           }
         }
         restart_policy = "Never"
       }
     }
+
+    backoff_limit = 3
   }
 
   depends_on = [
     aws_db_instance.postgres,
-    kubernetes_config_map_v1.db_seed_script
+    kubernetes_config_map_v1.cargarage_seed_script
   ]
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
+}
+
+# ==============================================================================
+# JOB 2 - OS Service Database Init (Create database and user)
+# ==============================================================================
+
+resource "kubernetes_job_v1" "os_service_db_init" {
+  metadata {
+    name      = "os-service-db-init"
+    namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
+  }
+
+  spec {
+    ttl_seconds_after_finished = 300
+
+    template {
+      metadata {
+        labels = {
+          app      = "os-service-db-init"
+          database = "os-service"
+          phase    = "init"
+        }
+      }
+      spec {
+        container {
+          name    = "db-init"
+          image   = "postgres:16-alpine"
+          command = ["/bin/sh", "-c"]
+          args = [
+            "echo 'Creating os_service_db database and user...' && psql -h ${aws_db_instance.postgres.address} -U ${local.db_username} -d ${local.db_name} -f /scripts/init-os-service-db.sql || true && echo 'Database creation completed!'"
+          ]
+          env {
+            name  = "PGPASSWORD"
+            value = local.db_password
+          }
+          volume_mount {
+            name       = "sql-volume"
+            mount_path = "/scripts"
+          }
+          resources {
+            requests = {
+              memory = "64Mi"
+              cpu    = "50m"
+            }
+            limits = {
+              memory = "128Mi"
+              cpu    = "100m"
+            }
+          }
+        }
+        volume {
+          name = "sql-volume"
+          config_map {
+            name = kubernetes_config_map_v1.os_service_init_script.metadata[0].name
+          }
+        }
+        restart_policy = "Never"
+      }
+    }
+
+    backoff_limit = 3
+  }
+
+  depends_on = [
+    aws_db_instance.postgres,
+    kubernetes_config_map_v1.os_service_init_script,
+    kubernetes_job_v1.cargarage_db_seed
+  ]
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
+}
+
+# ==============================================================================
+# JOB 3 - OS Service Database Seed
+# ==============================================================================
+
+resource "kubernetes_job_v1" "os_service_db_seed" {
+  metadata {
+    name      = "os-service-db-seed"
+    namespace = kubernetes_namespace_v1.db_init_ns.metadata[0].name
+  }
+
+  spec {
+    ttl_seconds_after_finished = 300
+
+    template {
+      metadata {
+        labels = {
+          app      = "os-service-db-seed"
+          database = "os-service"
+          phase    = "seed"
+        }
+      }
+      spec {
+        container {
+          name    = "db-seed"
+          image   = "postgres:16-alpine"
+          command = ["/bin/sh", "-c"]
+          args = [
+            "echo 'Seeding os_service_db database...' && psql -h ${aws_db_instance.postgres.address} -U ${local.os_service_db_username} -d ${local.os_service_db_name} -f /scripts/seed-os-service.sql && echo 'OS Service database seeded successfully!'"
+          ]
+          env {
+            name  = "PGPASSWORD"
+            value = local.os_service_db_password
+          }
+          volume_mount {
+            name       = "sql-volume"
+            mount_path = "/scripts"
+          }
+          resources {
+            requests = {
+              memory = "64Mi"
+              cpu    = "50m"
+            }
+            limits = {
+              memory = "128Mi"
+              cpu    = "100m"
+            }
+          }
+        }
+        volume {
+          name = "sql-volume"
+          config_map {
+            name = kubernetes_config_map_v1.os_service_seed_script.metadata[0].name
+          }
+        }
+        restart_policy = "Never"
+      }
+    }
+
+    backoff_limit = 3
+  }
+
+  depends_on = [
+    aws_db_instance.postgres,
+    kubernetes_config_map_v1.os_service_seed_script,
+    kubernetes_job_v1.os_service_db_init
+  ]
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
 }
