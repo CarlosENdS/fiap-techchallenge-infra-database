@@ -24,11 +24,12 @@ Atender aos seguintes requisitos do desafio:
 ## 📌 Escopo
 
 ### O que este repositório faz
-- Provisiona um banco **PostgreSQL gerenciado via Amazon RDS**
+- Provisiona um banco **PostgreSQL gerenciado via Amazon RDS** (cargarage + os_service_db)
+- Provisiona **DynamoDB** para o **Billing Service** (tabelas budgets e payments)
 - Cria recursos de rede necessários para o banco (subnets privadas e security groups)
 - Configura backups automáticos e criptografia
-- **Provisiona filas SQS para comunicação assíncrona (Saga Pattern)**
-- **Cria IAM Roles para IRSA (pods EKS acessarem AWS services)**
+- **Provisiona filas SQS para OS Service e Billing Service (Saga Pattern)**
+- **Cria IAM Roles para IRSA (os-service e billing-service)**
 - **Configura IAM Role para GitHub Actions (CD sem credenciais estáticas)**
 - Gerencia variáveis e credenciais de forma segura
 - Executa deploy automatizado via Terraform Cloud
@@ -114,10 +115,11 @@ Este repositório provisiona filas SQS para comunicação assíncrona entre micr
 
 | Fila | Tipo | Propósito |
 |------|------|-----------|
-| `os-order-events-queue.fifo` | FIFO | Fila de saída do os-service. Publica eventos de alteração de status de OS |
+| `os-order-events-queue.fifo` | FIFO | Fila de saída do **os-service**. Também consumida pelo **billing-service** (ORDER_CREATED) |
 | `quote-approved-queue` | Standard | Recebe notificação de orçamento aprovado pelo billing-service |
 | `execution-completed-queue` | Standard | Recebe notificação de execução concluída pelo execution-service |
 | `payment-failed-queue` | Standard | Compensação: notifica falha no pagamento |
+| `billing-events.fifo` | FIFO | Fila de saída do **billing-service** (BudgetApproved, PaymentProcessed, etc.) |
 | `resource-unavailable-queue` | Standard | Compensação: notifica indisponibilidade de recurso |
 
 ### Dead Letter Queues (DLQ)
@@ -165,6 +167,18 @@ metadata:
   annotations:
     eks.amazonaws.com/role-arn: "${OS_SERVICE_IRSA_ROLE_ARN}"
 ```
+
+#### Role: `billing-service-irsa-role`
+
+Permite que pods do **billing-service** acessem (mesmo padrão do os-service):
+
+| Serviço | Permissões |
+|---------|------------|
+| DynamoDB | GetItem, PutItem, UpdateItem, DeleteItem, Query, BatchGetItem, BatchWriteItem (tabelas budgets e payments) |
+| SQS | ReceiveMessage/DeleteMessage em `os-order-events-queue.fifo`; SendMessage em `billing-events.fifo`; GetQueueUrl, GetQueueAttributes |
+| ECR | GetAuthorizationToken, BatchCheckLayerAvailability, GetDownloadUrlForLayer, BatchGetImage |
+
+Arquivos Terraform do Billing: `dynamodb.tf` (tabelas), `sqs.tf` (fila billing-events.fifo + DLQ), `iam.tf` (role + policies), `outputs.tf` (billing_service_irsa_role_arn, billing_dynamodb_*_table_name, sqs_billing_events_queue_*, billing_service_k8s_config).
 
 ### GitHub Actions Deploy Role
 
