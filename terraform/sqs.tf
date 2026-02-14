@@ -173,3 +173,53 @@ resource "aws_sqs_queue_redrive_policy" "resource_unavailable_redrive" {
     maxReceiveCount     = 3
   })
 }
+
+# ==============================================================================
+# BILLING SERVICE - FIFO Queues (same pattern as OS Service)
+# ==============================================================================
+# Billing consumes from os-order-events-queue.fifo (already defined above).
+# Billing publishes to billing-events.fifo.
+
+# Billing Events FIFO Queue (Billing Service publishes)
+resource "aws_sqs_queue" "billing_events_fifo" {
+  name                        = "billing-events.fifo"
+  fifo_queue                  = true
+  content_based_deduplication  = true
+  message_retention_seconds   = 345600  # 4 days
+  visibility_timeout_seconds  = 300
+  receive_wait_time_seconds   = 5
+
+  deduplication_scope   = "messageGroup"
+  fifo_throughput_limit = "perMessageGroupId"
+
+  tags = {
+    Name        = "billing-events"
+    Service     = "billing-service"
+    Type        = "output"
+    Pattern     = "saga"
+    Environment = var.environment
+  }
+}
+
+# Dead Letter Queue for Billing Events
+resource "aws_sqs_queue" "billing_events_dlq_fifo" {
+  name                        = "billing-events-dlq.fifo"
+  fifo_queue                  = true
+  message_retention_seconds   = 1209600 # 14 days
+
+  tags = {
+    Name        = "billing-events-dlq"
+    Service     = "billing-service"
+    Type        = "dlq"
+    Environment = var.environment
+  }
+}
+
+# Redrive policy for Billing Events FIFO
+resource "aws_sqs_queue_redrive_policy" "billing_events_redrive" {
+  queue_url = aws_sqs_queue.billing_events_fifo.id
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.billing_events_dlq_fifo.arn
+    maxReceiveCount     = 3
+  })
+}
