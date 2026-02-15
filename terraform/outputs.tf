@@ -199,3 +199,48 @@ output "k8s_secrets_base64" {
   }
   sensitive = true
 }
+
+# ==============================================================================
+# BILLING SERVICE - DynamoDB & SQS
+# ==============================================================================
+
+output "billing_dynamodb_budgets_table_name" {
+  description = "DynamoDB table name for Billing Service budgets"
+  value       = aws_dynamodb_table.billing_budgets.name
+}
+
+output "billing_dynamodb_payments_table_name" {
+  description = "DynamoDB table name for Billing Service payments"
+  value       = aws_dynamodb_table.billing_payments.name
+}
+
+output "sqs_billing_events_queue_url" {
+  description = "URL of the Billing Events FIFO queue (Billing publishes)"
+  value       = aws_sqs_queue.billing_events_fifo.url
+}
+
+output "sqs_billing_events_queue_name" {
+  description = "Name of the Billing Events queue"
+  value       = aws_sqs_queue.billing_events_fifo.name
+}
+
+# Billing consumes from the same queue OS publishes to
+output "sqs_os_order_events_queue_name" {
+  description = "Name of the OS Order Events queue (Billing consumes from this)"
+  value       = aws_sqs_queue.os_order_events_fifo.name
+}
+
+output "billing_service_irsa_role_arn" {
+  description = "IRSA role ARN for Billing Service pods"
+  value       = aws_iam_role.billing_service_irsa.arn
+}
+
+output "billing_service_k8s_config" {
+  description = "Values for Billing Service ConfigMap (queue names, table names)"
+  value = {
+    DYNAMODB_TABLE_BUDGETS           = aws_dynamodb_table.billing_budgets.name
+    DYNAMODB_TABLE_PAYMENTS          = aws_dynamodb_table.billing_payments.name
+    SQS_QUEUE_SERVICE_ORDER_EVENTS   = aws_sqs_queue.os_order_events_fifo.name
+    SQS_QUEUE_BILLING_EVENTS         = aws_sqs_queue.billing_events_fifo.name
+  }
+}
