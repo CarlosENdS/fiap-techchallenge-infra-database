@@ -14,6 +14,11 @@ locals {
   os_service_db_name     = "os_service_db"
   os_service_db_username = "os_service_user"
   os_service_db_password = "OsService2024!"
+
+  # Execution Service database
+  execution_service_db_name     = "execution_service_db"
+  execution_service_db_username = "execution_service_user"
+  execution_service_db_password = "ExecutionService2024!"
 }
 
 # ==============================================================================
@@ -129,7 +134,7 @@ resource "aws_db_instance" "postgres" {
   tags = {
     Name        = "${var.project_name}-postgres-${var.environment}"
     Type        = "database"
-    Service     = "cargarage-os-service"
+    Service     = "cargarage-os-service-execution-service"
     Environment = var.environment
   }
 }
@@ -144,11 +149,15 @@ resource "aws_db_instance" "postgres" {
 # 1. cargarage-db-seed: Seeds the cargarage database (monolith)
 # 2. os-service-db-init: Creates os_service_db database and user
 # 3. os-service-db-seed: Seeds the os_service_db (microservice)
+# 4. execution-service-db-init: Creates execution_service_db database and user
+# 5. execution-service-db-seed: Seeds the execution_service_db (microservice)
 #
 # SQL Scripts:
 # - scripts/seed-cargarage.sql: Schema and data for monolith
 # - scripts/init-os-service-db.sql: Creates database and user
 # - scripts/seed-os-service.sql: Schema and data for os-service microservice
+# - scripts/init-execution-service-db.sql: Creates database and user
+# - scripts/seed-execution-service.sql: Schema and data for execution-service microservice
 # ==============================================================================
 
 

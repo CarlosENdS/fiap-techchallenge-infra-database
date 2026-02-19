@@ -244,3 +244,59 @@ output "billing_service_k8s_config" {
     SQS_QUEUE_BILLING_EVENTS         = aws_sqs_queue.billing_events_fifo.name
   }
 }
+
+# ==============================================================================
+# EXECUTION SERVICE OUTPUTS
+# ==============================================================================
+
+output "execution_service_database_name" {
+  description = "Execution Service database name"
+  value       = local.execution_service_db_name
+}
+
+output "execution_service_database_username" {
+  description = "Execution Service database username"
+  value       = local.execution_service_db_username
+  sensitive   = true
+}
+
+output "execution_service_jdbc_url" {
+  description = "JDBC connection URL for Execution Service"
+  value       = "jdbc:postgresql://${aws_db_instance.postgres.endpoint}/${local.execution_service_db_name}"
+}
+
+output "execution_service_irsa_role_arn" {
+  description = "IRSA role ARN for Execution Service pods"
+  value       = aws_iam_role.execution_service_irsa.arn
+}
+
+output "sqs_execution_events_queue_url" {
+  description = "URL of the Execution Service Events FIFO queue (output)"
+  value       = aws_sqs_queue.execution_events_fifo.url
+}
+
+output "sqs_execution_events_queue_name" {
+  description = "Name of the Execution Service Events FIFO queue"
+  value       = aws_sqs_queue.execution_events_fifo.name
+}
+
+output "execution_service_k8s_secrets_base64" {
+  description = "Base64-encoded values for Execution Service Kubernetes secrets"
+  value = {
+    DB_URL                         = base64encode("jdbc:postgresql://${aws_db_instance.postgres.endpoint}/${local.execution_service_db_name}")
+    DB_USERNAME                    = base64encode(local.execution_service_db_username)
+    DB_PASSWORD                    = base64encode(local.execution_service_db_password)
+    SQS_EXECUTION_EVENTS_QUEUE_URL = base64encode(aws_sqs_queue.execution_events_fifo.url)
+  }
+  sensitive = true
+}
+
+output "execution_service_k8s_config" {
+  description = "Values for Execution Service ConfigMap (queue URLs)"
+  value = {
+    SQS_EXECUTION_COMPLETED_QUEUE_URL = aws_sqs_queue.execution_completed.url
+    SQS_RESOURCE_UNAVAILABLE_QUEUE_URL = aws_sqs_queue.resource_unavailable.url
+    SQS_BILLING_EVENTS_QUEUE_URL      = aws_sqs_queue.billing_events_fifo.url
+    SQS_OS_EVENTS_QUEUE_URL            = aws_sqs_queue.os_order_events_fifo.url
+  }
+}
