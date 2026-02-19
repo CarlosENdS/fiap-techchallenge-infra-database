@@ -429,3 +429,148 @@ resource "aws_iam_role_policy_attachment" "billing_service_ecr" {
   role       = aws_iam_role.billing_service_irsa.name
   policy_arn = aws_iam_policy.billing_service_ecr.arn
 }
+
+# ==============================================================================
+# IAM ROLE FOR EXECUTION-SERVICE (IRSA)
+# ==============================================================================
+
+data "aws_iam_policy_document" "execution_service_assume_role" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.eks.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(data.terraform_remote_state.k8s.outputs.eks_cluster_oidc_issuer_url, "https://", "")}:sub"
+      values   = ["system:serviceaccount:execution-service:execution-service-sa"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${replace(data.terraform_remote_state.k8s.outputs.eks_cluster_oidc_issuer_url, "https://", "")}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "execution_service_irsa" {
+  name               = "execution-service-irsa-role"
+  assume_role_policy = data.aws_iam_policy_document.execution_service_assume_role.json
+
+  tags = {
+    Name        = "execution-service-irsa-role"
+    Service     = "execution-service"
+    Environment = var.environment
+  }
+}
+
+# SQS policy - Execution Service sends to FIFO + standard queues, receives from billing + os events
+data "aws_iam_policy_document" "execution_service_sqs" {
+  # Publish to Execution Service FIFO queue (output events)
+  statement {
+    sid    = "AllowSendToExecutionFifoQueue"
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueUrl",
+      "sqs:GetQueueAttributes"
+    ]
+    resources = [
+      aws_sqs_queue.execution_events_fifo.arn
+    ]
+  }
+
+  # Publish to standard queues (execution-completed, resource-unavailable)
+  statement {
+    sid    = "AllowSendToStandardQueues"
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueUrl",
+      "sqs:GetQueueAttributes"
+    ]
+    resources = [
+      aws_sqs_queue.execution_completed.arn,
+      aws_sqs_queue.resource_unavailable.arn
+    ]
+  }
+
+  # Consume from billing-events and os-order-events FIFO queues
+  statement {
+    sid    = "AllowReceiveFromFifoQueues"
+    effect = "Allow"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueUrl",
+      "sqs:GetQueueAttributes",
+      "sqs:ChangeMessageVisibility"
+    ]
+    resources = [
+      aws_sqs_queue.billing_events_fifo.arn,
+      aws_sqs_queue.os_order_events_fifo.arn
+    ]
+  }
+
+  # Allow listing queues
+  statement {
+    sid    = "AllowListQueues"
+    effect = "Allow"
+    actions = ["sqs:ListQueues"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "execution_service_sqs" {
+  name        = "execution-service-sqs-policy"
+  description = "Allow Execution Service to access SQS queues"
+  policy      = data.aws_iam_policy_document.execution_service_sqs.json
+
+  tags = {
+    Name        = "execution-service-sqs-policy"
+    Service     = "execution-service"
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "execution_service_sqs" {
+  role       = aws_iam_role.execution_service_irsa.name
+  policy_arn = aws_iam_policy.execution_service_sqs.arn
+}
+
+# ECR policy - Execution Service pull images
+data "aws_iam_policy_document" "execution_service_ecr" {
+  statement {
+    sid    = "AllowECRPull"
+    effect = "Allow"
+    actions = [
+      "ecr:GetAuthorizationToken",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage"
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "execution_service_ecr" {
+  name        = "execution-service-ecr-policy"
+  description = "Allow Execution Service to pull images from ECR"
+  policy      = data.aws_iam_policy_document.execution_service_ecr.json
+
+  tags = {
+    Name        = "execution-service-ecr-policy"
+    Service     = "execution-service"
+    Environment = var.environment
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "execution_service_ecr" {
+  role       = aws_iam_role.execution_service_irsa.name
+  policy_arn = aws_iam_policy.execution_service_ecr.arn
+}

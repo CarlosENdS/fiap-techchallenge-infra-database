@@ -223,3 +223,51 @@ resource "aws_sqs_queue_redrive_policy" "billing_events_redrive" {
     maxReceiveCount     = 3
   })
 }
+
+# ==============================================================================
+# EXECUTION SERVICE - FIFO Queues (Execution Service publishes lifecycle events)
+# ==============================================================================
+
+# Execution Service Events FIFO Queue
+resource "aws_sqs_queue" "execution_events_fifo" {
+  name                        = "execution-service-events.fifo"
+  fifo_queue                  = true
+  content_based_deduplication = false
+  message_retention_seconds   = 345600  # 4 days
+  visibility_timeout_seconds  = 30
+  receive_wait_time_seconds   = 10
+
+  deduplication_scope   = "messageGroup"
+  fifo_throughput_limit = "perMessageGroupId"
+
+  tags = {
+    Name        = "execution-service-events"
+    Service     = "execution-service"
+    Type        = "output"
+    Pattern     = "saga"
+    Environment = var.environment
+  }
+}
+
+# Dead Letter Queue for Execution Service Events
+resource "aws_sqs_queue" "execution_events_dlq_fifo" {
+  name                      = "execution-service-events-dlq.fifo"
+  fifo_queue                = true
+  message_retention_seconds = 1209600 # 14 days
+
+  tags = {
+    Name        = "execution-service-events-dlq"
+    Service     = "execution-service"
+    Type        = "dlq"
+    Environment = var.environment
+  }
+}
+
+# Redrive policy for Execution Service Events FIFO
+resource "aws_sqs_queue_redrive_policy" "execution_events_redrive" {
+  queue_url = aws_sqs_queue.execution_events_fifo.id
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.execution_events_dlq_fifo.arn
+    maxReceiveCount     = 3
+  })
+}
