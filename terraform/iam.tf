@@ -298,6 +298,7 @@ data "aws_iam_policy_document" "billing_service_dynamodb" {
       "dynamodb:UpdateItem",
       "dynamodb:DeleteItem",
       "dynamodb:Query",
+      "dynamodb:Scan",
       "dynamodb:BatchGetItem",
       "dynamodb:BatchWriteItem",
       "dynamodb:DescribeTable"
@@ -317,6 +318,7 @@ data "aws_iam_policy_document" "billing_service_dynamodb" {
       "dynamodb:UpdateItem",
       "dynamodb:DeleteItem",
       "dynamodb:Query",
+      "dynamodb:Scan",
       "dynamodb:BatchGetItem",
       "dynamodb:BatchWriteItem",
       "dynamodb:DescribeTable"
@@ -371,6 +373,21 @@ data "aws_iam_policy_document" "billing_service_sqs" {
       "sqs:GetQueueAttributes"
     ]
     resources = [aws_sqs_queue.billing_events_fifo.arn]
+  }
+
+  # Publish to standard queues (quote-approved, payment-failed)
+  statement {
+    sid    = "AllowSendToStandardQueues"
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueUrl",
+      "sqs:GetQueueAttributes"
+    ]
+    resources = [
+      aws_sqs_queue.quote_approved.arn,
+      aws_sqs_queue.payment_failed.arn
+    ]
   }
 
   statement {

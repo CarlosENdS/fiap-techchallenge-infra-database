@@ -242,6 +242,8 @@ output "billing_service_k8s_config" {
     DYNAMODB_TABLE_PAYMENTS          = aws_dynamodb_table.billing_payments.name
     SQS_QUEUE_SERVICE_ORDER_EVENTS   = aws_sqs_queue.os_order_events_fifo.name
     SQS_QUEUE_BILLING_EVENTS         = aws_sqs_queue.billing_events_fifo.name
+    SQS_QUEUE_QUOTE_APPROVED         = aws_sqs_queue.quote_approved.name
+    SQS_QUEUE_PAYMENT_FAILED         = aws_sqs_queue.payment_failed.name
   }
 }
 
