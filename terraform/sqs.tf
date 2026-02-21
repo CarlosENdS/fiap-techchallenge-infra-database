@@ -175,6 +175,37 @@ resource "aws_sqs_queue_redrive_policy" "resource_unavailable_redrive" {
 }
 
 # ==============================================================================
+# STANDARD QUEUE - Billing Order Events (OS Service -> Billing Service)
+# ==============================================================================
+# OS Service publishes ORDER_CREATED with full items[] payload here.
+# Billing Service consumes from this queue to create Budgets.
+
+resource "aws_sqs_queue" "service_order_events" {
+  name = "service-order-events"
+
+  message_retention_seconds  = 345600 # 4 days
+  visibility_timeout_seconds = 30
+  receive_wait_time_seconds  = 10
+
+  tags = {
+    Name        = "service-order-events"
+    Service     = "os-service"
+    Consumer    = "billing-service"
+    Type        = "output"
+    Pattern     = "saga"
+    Environment = var.environment
+  }
+}
+
+resource "aws_sqs_queue_redrive_policy" "service_order_events_redrive" {
+  queue_url = aws_sqs_queue.service_order_events.id
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.standard_dlq.arn
+    maxReceiveCount     = 3
+  })
+}
+
+# ==============================================================================
 # BILLING SERVICE - FIFO Queues (same pattern as OS Service)
 # ==============================================================================
 # Billing consumes from os-order-events-queue.fifo (already defined above).

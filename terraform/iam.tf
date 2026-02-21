@@ -66,7 +66,8 @@ data "aws_iam_policy_document" "os_service_sqs" {
       "sqs:GetQueueAttributes"
     ]
     resources = [
-      aws_sqs_queue.os_order_events_fifo.arn
+      aws_sqs_queue.os_order_events_fifo.arn,
+      aws_sqs_queue.service_order_events.arn
     ]
   }
 
@@ -349,7 +350,7 @@ resource "aws_iam_role_policy_attachment" "billing_service_dynamodb" {
 
 # SQS policy - Billing consumes from os-order-events, publishes to billing-events
 data "aws_iam_policy_document" "billing_service_sqs" {
-  # Consume from OS output queue (Billing receives ORDER_CREATED)
+  # Consume from OS output queues (Billing receives ORDER_CREATED)
   statement {
     sid    = "AllowReceiveFromOsEvents"
     effect = "Allow"
@@ -360,7 +361,10 @@ data "aws_iam_policy_document" "billing_service_sqs" {
       "sqs:GetQueueAttributes",
       "sqs:ChangeMessageVisibility"
     ]
-    resources = [aws_sqs_queue.os_order_events_fifo.arn]
+    resources = [
+      aws_sqs_queue.os_order_events_fifo.arn,
+      aws_sqs_queue.service_order_events.arn
+    ]
   }
 
   # Publish to Billing output queue

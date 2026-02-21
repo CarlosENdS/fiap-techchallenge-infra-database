@@ -95,6 +95,16 @@ output "sqs_os_events_queue_arn" {
   value       = aws_sqs_queue.os_order_events_fifo.arn
 }
 
+output "sqs_service_order_events_queue_url" {
+  description = "URL of the Service Order Events standard queue (OS -> Billing)"
+  value       = aws_sqs_queue.service_order_events.url
+}
+
+output "sqs_service_order_events_queue_name" {
+  description = "Name of the Service Order Events standard queue"
+  value       = aws_sqs_queue.service_order_events.name
+}
+
 output "sqs_quote_approved_queue_url" {
   description = "URL of the Quote Approved queue (input)"
   value       = aws_sqs_queue.quote_approved.url
@@ -183,7 +193,8 @@ output "os_service_k8s_secrets_base64" {
     DB_URL      = base64encode("jdbc:postgresql://${aws_db_instance.postgres.endpoint}/${local.os_service_db_name}")
     DB_USERNAME = base64encode(local.os_service_db_username)
     DB_PASSWORD = base64encode(local.os_service_db_password)
-    SQS_OS_EVENTS_QUEUE_URL = base64encode(aws_sqs_queue.os_order_events_fifo.url)
+    SQS_OS_EVENTS_QUEUE_URL         = base64encode(aws_sqs_queue.os_order_events_fifo.url)
+    SQS_BILLING_ORDER_EVENTS_URL     = base64encode(aws_sqs_queue.service_order_events.url)
   }
   sensitive = true
 }
@@ -240,7 +251,7 @@ output "billing_service_k8s_config" {
   value = {
     DYNAMODB_TABLE_BUDGETS           = aws_dynamodb_table.billing_budgets.name
     DYNAMODB_TABLE_PAYMENTS          = aws_dynamodb_table.billing_payments.name
-    SQS_QUEUE_SERVICE_ORDER_EVENTS   = aws_sqs_queue.os_order_events_fifo.name
+    SQS_QUEUE_SERVICE_ORDER_EVENTS   = aws_sqs_queue.service_order_events.name
     SQS_QUEUE_BILLING_EVENTS         = aws_sqs_queue.billing_events_fifo.name
     SQS_QUEUE_QUOTE_APPROVED         = aws_sqs_queue.quote_approved.name
     SQS_QUEUE_PAYMENT_FAILED         = aws_sqs_queue.payment_failed.name
