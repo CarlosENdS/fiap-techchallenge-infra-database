@@ -247,14 +247,14 @@ output "billing_service_irsa_role_arn" {
 }
 
 output "billing_service_k8s_config" {
-  description = "Values for Billing Service ConfigMap (queue names, table names)"
+  description = "Values for Billing Service ConfigMap (queue URLs, table names)"
   value = {
-    DYNAMODB_TABLE_BUDGETS           = aws_dynamodb_table.billing_budgets.name
-    DYNAMODB_TABLE_PAYMENTS          = aws_dynamodb_table.billing_payments.name
-    SQS_QUEUE_SERVICE_ORDER_EVENTS   = aws_sqs_queue.service_order_events.name
-    SQS_QUEUE_BILLING_EVENTS         = aws_sqs_queue.billing_events_fifo.name
-    SQS_QUEUE_QUOTE_APPROVED         = aws_sqs_queue.quote_approved.name
-    SQS_QUEUE_PAYMENT_FAILED         = aws_sqs_queue.payment_failed.name
+    DYNAMODB_TABLE_BUDGETS              = aws_dynamodb_table.billing_budgets.name
+    DYNAMODB_TABLE_PAYMENTS             = aws_dynamodb_table.billing_payments.name
+    SQS_QUEUE_SERVICE_ORDER_EVENTS_URL  = aws_sqs_queue.service_order_events.url
+    SQS_QUEUE_BILLING_EVENTS_URL        = aws_sqs_queue.billing_events_fifo.url
+    SQS_QUEUE_QUOTE_APPROVED_URL        = aws_sqs_queue.quote_approved.url
+    SQS_QUEUE_PAYMENT_FAILED_URL        = aws_sqs_queue.payment_failed.url
   }
 }
 
